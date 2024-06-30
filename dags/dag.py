@@ -2,6 +2,7 @@ from airflow import DAG
 from datetime import datetime, timedelta
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.exceptions import AirflowException
 
 default_args = {
     "owner": "airflow",
@@ -24,54 +25,83 @@ with DAG(
     """
     Using mock local database while developing
     """
-    
+
     def execute_stored_procedure():
         pg_hook = PostgresHook(postgres_conn_id='postgres_default')
         conn = pg_hook.get_conn()
         cursor = conn.cursor()
+        try:
+            # Rollback any open transaction to start fresh
+            cursor.execute("ROLLBACK")
 
-        # Rollback any open transaction to start fresh
-        cursor.execute("ROLLBACK")
-        cursor = conn.cursor()
-        
-        """
-        Since VACUUM cannot be invoked by a function 
-        Changing the function into a procedure does not solve the problem
-        Link docs: https://fluca1978.github.io/2020/02/06/VacuumByNotOwners.html
-        """
-        cursor.execute("VACUUM FULL products")
-        conn.commit()
-        
-        cursor.close()
-        conn.close()
+            # Execute VACUUM FULL with appropriate error handling
+            cursor.execute("VACUUM FULL products")
+            print(f"VACUUM FULL products completed successfully.")
+
+            # Get table vacuum stats
+            cursor.execute("""
+                SELECT
+                    schemaname,
+                    relname,
+                    last_vacuum,
+                    last_autovacuum,
+                    vacuum_count,
+                    autovacuum_count
+                FROM
+                    pg_stat_user_tables
+                WHERE
+                    relname = 'products' AND schemaname = 'public'                           
+            """)
+
+            rows = cursor.fetchall()
+            if not rows:
+                print("No data found in pg_stat_user_tables for products table.")
+            else:
+                for row in rows:
+                    print(f"Vacuum stats for {row[0]}.{row[1]}:")
+                    print(f"\tLast vacuum: {row[2]}")
+                    print(f"\tLast autovacuum: {row[3]}")
+                    print(f"\tVacuum count: {row[4]}")
+                    print(f"\tAutovacuum count: {row[5]}")
+
+            conn.commit()
+        except Exception as e:
+            print(f"Error executing VACUUM FULL or fetching stats: {e}")
+            raise AirflowException(f"Error executing VACUUM FULL or fetching stats: {e}")
+        finally:
+            cursor.close()
+            conn.close()
 
     def fetch_and_execute_statements():
         pg_hook = PostgresHook(postgres_conn_id='postgres_default')
         conn = pg_hook.get_conn()
         cursor = conn.cursor()
 
-        # Execute the select query to fetch the statements from the temp table
-        cursor.execute("SELECT * FROM products")
-        
-        # Row 58 to 68 cannot be executed because I'm using mock database for now
+        try:
+            # Execute the select query to fetch statements (replace with actual query)
+            cursor.execute("SELECT * FROM products")  # Replace with your actual query
 
-        # Fetch all rows from the result set
-        # rows = cursor.fetchall()
+            rows = cursor.fetchall()
+            if not rows:
+                print("No data found in the products table.")
+            else:
+                pass
+                # Loop through each row and execute the statement (consider error handling)
+                # for row in rows:
+                #     statement = row[0]
+                #     try:
+                #         cursor.execute(statement)
+                #         print(f"Executed statement: {statement}")
+                #     except Exception as e:
+                #         print(f"Error executing statement '{statement}': {e}")
 
-        # Loop through each row and execute the statement
-        # for row in rows:
-        #     # Extract the statement from the row
-        #     statement = row[0]
-            
-        #     # Execute the statement
-        #     cursor.execute(statement)
-        #     print("Executed statement:", statement)
-            
-        # Commit the transaction
-        conn.commit()
-
-        cursor.close()
-        conn.close()
+            conn.commit()
+        except Exception as e:
+            print(f"Error fetching or executing statements: {e}")
+            raise AirflowException(f"Error fetching or executing statements: {e}")
+        finally:
+            cursor.close()
+            conn.close()
 
     # Define the tasks
     execute_procedure_task = PythonOperator(
