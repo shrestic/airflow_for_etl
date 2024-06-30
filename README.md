@@ -1,0 +1,1 @@
+SendGrid Account: Create an account on SendGrid and obtain your API Key. You can sign up :https://login.twilio.com/u/signup?state=hKFo2SBoc040OU9Uemw2WXRoZlZBb0xWY1pkbV9rb1ZTZ3FPNaFur3VuaXZlcnNhbC1sb2dpbqN0aWTZIDgwMnBnc2xjS1JYdnJnQ1E3cXZRbTRwOWF3SDZXamtno2NpZNkgR244UWMyZ1FOa2trZ0llT2s4QlJqRWZ5eWNoMTU2VUk

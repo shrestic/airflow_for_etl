@@ -4,5 +4,9 @@
         "schemaname",
         "searchpath",
         "statusmessage"
+    ],
+    "python.analysis.extraPaths": [
+        "./plugins/utilities",
+        "./plugins"
     ]
 }
